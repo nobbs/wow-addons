@@ -1,0 +1,43 @@
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      paths: ${{ steps.release.outputs.paths_released }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # One zip per addon released in this run, attached to its release: the addon's folder as WoW
+  # installs it, without the offline tests.
+  package:
+    needs: release-please
+    if: needs.release-please.outputs.paths != '[]' && needs.release-please.outputs.paths != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        path: ${{ fromJSON(needs.release-please.outputs.paths) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zip the addon and attach it to its release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ADDON_PATH: ${{ matrix.path }}
+        run: |
+          name=$(basename "$ADDON_PATH")
+          version=$(jq -r --arg p "$ADDON_PATH" '.[$p]' .release-please-manifest.json)
+          zip="$name-$version.zip"
+          (cd "$(dirname "$ADDON_PATH")" && zip -r "$GITHUB_WORKSPACE/$zip" "$name" -x "$name/tests/*" "$name/version.txt")
+          gh release upload "$name-v$version" "$zip" --clobber

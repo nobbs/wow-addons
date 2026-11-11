@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "wow-addon-api-agents": {
+      "source": {
+        "source": "github",
+        "repo": "JBurlison/WoWAddonAPIAgents"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "wow-addon-dev@wow-addon-api-agents": true
+  }
+}

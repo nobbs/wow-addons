@@ -1,0 +1,9 @@
+.DS_Store
+# Third-party API references, cloned separately (see README)
+/reference/
+# Other addons installed alongside these stay untracked; the ones tracked here are one
+# release-please component each (release-please-config.json).
+/AddOns/*
+!/AddOns/GamepadSettingsFix/
+!/AddOns/MenuReload/
+!/AddOns/PartyPad/
