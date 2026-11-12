@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: Gamepad Settings Fix
+## Notes: Lets the d-pad reach the controls on addon pages in the game's Options window (the ones an addon draws itself, like Spoken's).
+## Author: Nobbs
+# x-release-please-start-version
+## Version: 0.1.0
+# x-release-please-end
+## Category: Nobbs
+
+GamepadSettingsFix.lua
