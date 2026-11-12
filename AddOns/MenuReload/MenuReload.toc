@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Menu Reload
-## Notes: Adds a Reload UI button under the game menu, reachable with the d-pad.
+## Notes: Adds Reload UI to the game menu, after Macros.
 ## Author: Nobbs
 # x-release-please-start-version
 ## Version: 0.1.0
