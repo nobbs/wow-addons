@@ -1,9 +1,10 @@
 # MenuReload
 
-A Reload UI button under the game menu (Esc / Menu). With the controller UI on, the d-pad
-reaches it: down from the menu's last button, and down again wraps back to the first.
+A Reload UI button in the game menu (Esc / Menu), after Macros and before Log Out. With the
+controller UI on, the d-pad reaches it like any other entry.
 
-It is its own button rather than one added with `GameMenuFrame:AddButton`, which an addon must
-not call: that pool also holds Log Out and Exit Game, and an addon using it taints the menu.
+It is a button of its own, given a place in the menu's layout, rather than one from
+`GameMenuFrame:AddButton`: that pool is reset by the menu each time it opens, and an addon taking
+from it taints every menu action built after it, Options and Edit Mode among them.
 
 Tests: `lua tests/MenuReload_spec.lua` (Lua 5.1).

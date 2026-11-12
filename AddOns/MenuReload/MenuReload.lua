@@ -3,34 +3,28 @@ if not menu then
   return
 end
 
--- A button of our own under the menu, not one of its own: GameMenuFrame:AddButton takes buttons
--- from the pool Log Out and Exit Game come from, and from an addon it taints that pool and the
--- menu's secure show, which the controller UI then blocks.
+-- Our own button among the menu's, not one from GameMenuFrame:AddButton: that pool is reset by
+-- the menu's next InitButtons, so an addon taking from it taints every menu action built after,
+-- Options and Edit Mode among them. A child with a layoutIndex is laid out with the menu's buttons
+-- all the same (BaseLayoutMixin:AddLayoutChildren), and the d-pad reaches it like any of them.
 local button = CreateFrame("Button", "MenuReloadButton", menu, "GameMenuFrameButtonTemplate")
 button:SetText(RELOADUI or "Reload UI")
-button:SetPoint("TOP", menu, "BOTTOM", 0, -4)
 button:SetScript("OnClick", function()
   ReloadUI()
 end)
+button:Hide()
 
--- The game refuses an addon's SmartNavigation calls while this restriction is active
--- (SecureHelper.lua) and shows its "action blocked" error.
-local function IsRestricted()
-  return C_RestrictedActions.IsAddOnRestrictionActive(Enum.AddOnRestrictionType.Combat)
-end
-
--- The d-pad wraps from the menu's last button to its first (GameMenuFrame:SetupGamepadButtons,
--- run as it shows); this puts the button into that loop, between them. The menu clears its
--- buttons' overrides as it hides.
-menu:HookScript("OnShow", function(self)
-  if not InputUtil.IsGamepadUIEnabled() or IsRestricted() then
-    return
+-- InitButtons numbers the buttons afresh each time the menu shows, then the menu lays them out.
+-- Half a step before Log Out puts this after the last button of the section above it.
+hooksecurefunc(menu, "InitButtons", function(self)
+  local logout = self:GetLogoutText()
+  for _, other in ipairs(self.buttons) do
+    if other:GetText() == logout then
+      button.layoutIndex = other.layoutIndex - 0.5
+      button:Show()
+      return
+    end
   end
-  local first, last = self.buttons[1], self.buttons[#self.buttons]
-  if not first then
-    return
-  end
-  local direction = SMART_NAV_INPUT_DIRECTION
-  SmartNavigation_AddBidirectionalJumpNavigationOverride(last, direction.DOWN, button, direction.UP)
-  SmartNavigation_AddBidirectionalJumpNavigationOverride(button, direction.DOWN, first, direction.UP)
+  button.layoutIndex = nil
+  button:Hide()
 end)

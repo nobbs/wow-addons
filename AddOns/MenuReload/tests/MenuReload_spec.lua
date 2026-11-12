@@ -1,29 +1,35 @@
 -- Plain Lua 5.1 checks for MenuReload against stubbed Blizzard globals.
--- Run from this addon folder: lua tests/MenuReload_spec.lua
+-- Run from this addon folder: lua tests/MenuReload_spec.lua [path/to/MenuReload.lua]
 
 local ADDON = arg[1] or "MenuReload.lua"
 
 local function NewFrame(kind, name, parent, template)
-  local frame = { kind = kind, name = name, parent = parent, template = template, scripts = {}, hooks = {} }
+  local frame = { kind = kind, name = name, parent = parent, template = template, scripts = {}, shown = true }
   function frame:SetText(text) self.text = text end
-  function frame:SetPoint(...) self.point = { ... } end
+  function frame:GetText() return self.text end
+  function frame:SetPoint() self.anchored = true end
   function frame:SetScript(event, fn) self.scripts[event] = fn end
-  function frame:HookScript(event, fn) table.insert(self.hooks, { event = event, fn = fn }) end
   function frame:Click() self.scripts.OnClick(self) end
+  function frame:Show() self.shown = true end
+  function frame:Hide() self.shown = false end
   return frame
 end
 
-local function Setup()
-  local env = { gamepad = true, restricted = false, overrides = {}, reloads = 0 }
+-- The menu as GameMenuFrameMixin:InitButtons leaves it: its pool's buttons, numbered for the
+-- layout in the order they were added, the close button only without the controller UI.
+local function Setup(labels)
+  local env = { reloads = 0 }
   local menu = NewFrame("Frame", "GameMenuFrame")
-  menu.buttons = { NewFrame("Button"), NewFrame("Button"), NewFrame("Button") }
-  function menu:AddButton() error("must not use the menu's own button pool") end
-  function env.Show()
-    for _, hook in ipairs(menu.hooks) do
-      if hook.event == "OnShow" then hook.fn(menu) end
+  function menu:GetLogoutText() return "Log Out" end
+  function menu:AddButton() error("must not take a button from the menu's pool") end
+  function menu:InitButtons()
+    self.buttons = {}
+    for index, text in ipairs(labels or { "Options", "Shop", "AddOns", "Macros", "Log Out", "Exit Game" }) do
+      local button = NewFrame("Button")
+      button.text, button.layoutIndex = text, index
+      table.insert(self.buttons, button)
     end
   end
-  local DIRECTION = { UP = "Up", DOWN = "Down", LEFT = "Left", RIGHT = "Right" }
 
   local G = {
     GameMenuFrame = menu,
@@ -33,16 +39,9 @@ local function Setup()
       return env.button
     end,
     ReloadUI = function() env.reloads = env.reloads + 1 end,
-    InputUtil = { IsGamepadUIEnabled = function() return env.gamepad end },
-    C_RestrictedActions = { IsAddOnRestrictionActive = function() return env.restricted end },
-    Enum = { AddOnRestrictionType = { Combat = 0 } },
-    SMART_NAV_INPUT_DIRECTION = DIRECTION,
-    -- As Blizzard's: from source, destinationDir goes to destination, and back with sourceDir.
-    SmartNavigation_AddBidirectionalJumpNavigationOverride = function(source, toDir, destination, backDir)
-      env.overrides[source] = env.overrides[source] or {}
-      env.overrides[destination] = env.overrides[destination] or {}
-      env.overrides[source][toDir] = destination
-      env.overrides[destination][backDir] = source
+    hooksecurefunc = function(tbl, name, hook)
+      local original = tbl[name]
+      tbl[name] = function(...) original(...); hook(...) end
     end,
   }
   setmetatable(G, { __index = _G })
@@ -51,6 +50,17 @@ local function Setup()
   chunk()
   env.menu = menu
   return env
+end
+
+-- The menu's buttons and ours, in the order the layout draws them.
+local function Order(env)
+  local all = {}
+  for _, button in ipairs(env.menu.buttons) do table.insert(all, button) end
+  if env.button.shown and env.button.layoutIndex then table.insert(all, env.button) end
+  table.sort(all, function(a, b) return a.layoutIndex < b.layoutIndex end)
+  local texts = {}
+  for _, button in ipairs(all) do table.insert(texts, button.text) end
+  return table.concat(texts, ", ")
 end
 
 local failures = 0
@@ -64,52 +74,39 @@ local function Equal(actual, expected, what)
     error(string.format("%s: expected %s, got %s", what, tostring(expected), tostring(actual)), 2)
   end
 end
-local function Nav(env, frame, dir) return env.overrides[frame] and env.overrides[frame][dir] end
 
-Test("the button sits under the menu, as one of its own buttons looks", function()
+Test("it is a button of the menu, drawn as the menu's own are", function()
   local env = Setup()
-  local button = env.button
-  Equal(button.parent, env.menu, "parent")
-  Equal(button.template, "GameMenuFrameButtonTemplate", "template")
-  Equal(button.text, "Reload UI", "label")
-  Equal(button.point[1] .. " " .. button.point[3], "TOP BOTTOM", "anchor")
+  Equal(env.button.parent, env.menu, "parent")
+  Equal(env.button.template, "GameMenuFrameButtonTemplate", "template")
+  Equal(env.button.text, "Reload UI", "label")
+  Equal(env.button.anchored, nil, "anchored by hand rather than by the menu's layout")
+end)
+
+Test("the menu lists it after Macros, before Log Out", function()
+  local env = Setup()
+  env.menu:InitButtons()
+  Equal(Order(env), "Options, Shop, AddOns, Macros, Reload UI, Log Out, Exit Game", "order")
+end)
+
+Test("it keeps its place each time the menu rebuilds", function()
+  local env = Setup()
+  env.menu:InitButtons()
+  env.menu:InitButtons()
+  Equal(Order(env), "Options, Shop, AddOns, Macros, Reload UI, Log Out, Exit Game", "order")
 end)
 
 Test("clicking it reloads the interface", function()
   local env = Setup()
+  env.menu:InitButtons()
   env.button:Click()
   Equal(env.reloads, 1, "reloads")
 end)
 
-Test("with the controller UI the d-pad loop runs through it", function()
-  local env = Setup()
-  local buttons = env.menu.buttons
-  env.Show()
-  Equal(Nav(env, buttons[3], "Down"), env.button, "down from the last menu button")
-  Equal(Nav(env, env.button, "Up"), buttons[3], "up from reload")
-  Equal(Nav(env, env.button, "Down"), buttons[1], "down from reload")
-  Equal(Nav(env, buttons[1], "Up"), env.button, "up from the first menu button")
-end)
-
-Test("with mouse and keyboard the menu's navigation is left alone", function()
-  local env = Setup()
-  env.gamepad = false
-  env.Show()
-  Equal(next(env.overrides), nil, "overrides")
-end)
-
-Test("in combat it asks nothing the game would refuse", function()
-  local env = Setup()
-  env.restricted = true
-  env.Show()
-  Equal(next(env.overrides), nil, "overrides")
-end)
-
-Test("a menu with no buttons yet is left alone", function()
-  local env = Setup()
-  env.menu.buttons = {}
-  env.Show()
-  Equal(next(env.overrides), nil, "overrides")
+Test("a menu without Log Out leaves it out rather than guessing a place", function()
+  local env = Setup({ "Options", "Exit Game" })
+  env.menu:InitButtons()
+  Equal(Order(env), "Options, Exit Game", "order")
 end)
 
 os.exit(failures == 0 and 0 or 1)
