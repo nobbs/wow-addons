@@ -6,5 +6,6 @@
 ## Version: 0.1.0
 # x-release-please-end
 ## SavedVariables: PartyPadDB
+## Category: Nobbs
 
 PartyPad.lua
