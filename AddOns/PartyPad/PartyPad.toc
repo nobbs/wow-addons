@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: Party Pad
+## Notes: Arranges Blizzard's party frames like the d-pad: each member sits in the direction that targets them. /partypad toggles.
+## Author: Nobbs
+# x-release-please-start-version
+## Version: 0.1.0
+# x-release-please-end
+## SavedVariables: PartyPadDB
+
+PartyPad.lua
